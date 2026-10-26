@@ -7,7 +7,7 @@
 # 运行时统一用 bash install_nginx.sh。用 ./install_nginx.sh 时，若文件被 Windows
 # 存成 CRLF，内核会因为 shebang 末尾的 \r 直接报 bad interpreter，脚本自身无法补救。
 #
-if [ -z "${NGX_LF_OK:-}" ] && head -c 8192 "$0" 2>/dev/null | od -An -c | grep -qF '\r'; then printf '\033[33m[提示]\033[0m 检测到 Windows 换行符（CRLF），自动转成 Unix 格式后重新执行\n'; sed -i 's/\r$//' "$0" 2>/dev/null || true; NGX_LF_OK=1 exec bash "$0" "$@" ; fi  # 必须单行，行尾注释用于吞掉 CRLF 的 \r
+if [ -z "${NGX_LF_OK:-}" ] && [ -f "$0" ] && head -c 8192 "$0" 2>/dev/null | od -An -c | grep -qF '\r'; then printf '\033[33m[提示]\033[0m 检测到 Windows 换行符（CRLF），自动转成 Unix 格式后重新执行\n'; sed -i 's/\r$//' "$0" 2>/dev/null || true; NGX_LF_OK=1 exec bash "$0" "$@" ; fi  # 必须单行，行尾注释用于吞掉 CRLF 的 \r
 
 set -euo pipefail
 

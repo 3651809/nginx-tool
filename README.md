@@ -3,7 +3,7 @@
 在 Debian 上源码编译安装 nginx 并做生产环境基线配置的一键脚本。一个文件，带交互菜单，可反复执行。
 
 ```bash
-bash <(curl -fsSL https://ghproxy.net/https://raw.githubusercontent.com/3651809/nginx-tool/main/install_nginx.sh)
+cd /tmp && rm -rf nginx-tool-main && curl -fsSL https://codeload.github.com/3651809/nginx-tool/tar.gz/refs/heads/main | tar xz && bash nginx-tool-main/install_nginx.sh
 ```
 
 不求覆盖所有发行版，只解决一件事：**从干净的 Debian 到一台可以直接放站点的 nginx**，装的每一步都能查、能修、能卸。
@@ -29,7 +29,7 @@ bash <(curl -fsSL https://ghproxy.net/https://raw.githubusercontent.com/3651809/
 | 系统 | Debian 13 (trixie)，Debian 12 亦可 |
 | 权限 | root |
 | 内存 | 512MB 以上（低于 2GB 且编译内置 OpenSSL 时自动降并行度） |
-| 网络 | 能访问 `mirrors.huaweicloud.com`、`nginx.org`、`ghproxy.net` |
+| 网络 | 能访问 `mirrors.huaweicloud.com`、`nginx.org`、`codeload.github.com` |
 
 第一次运行会自动：换国内 apt 源（原文件备份）→ 装编译依赖 → 下载源码 → 编译 → 装服务。
 
@@ -40,19 +40,28 @@ bash <(curl -fsSL https://ghproxy.net/https://raw.githubusercontent.com/3651809/
 ### 1. 在线一键运行（推荐）
 
 ```bash
-bash <(curl -fsSL https://ghproxy.net/https://raw.githubusercontent.com/3651809/nginx-tool/main/install_nginx.sh)
+cd /tmp && rm -rf nginx-tool-main && curl -fsSL https://codeload.github.com/3651809/nginx-tool/tar.gz/refs/heads/main | tar xz && bash nginx-tool-main/install_nginx.sh
 ```
 
-不想用进程替换，就分两步：
+走 `codeload.github.com`，不依赖 `raw.githubusercontent.com`，也不经过第三方代理。想先看清再跑就拆成两步：
+
+```bash
+cd /tmp && rm -rf nginx-tool-main
+curl -fsSL https://codeload.github.com/3651809/nginx-tool/tar.gz/refs/heads/main | tar xz
+bash -n nginx-tool-main/install_nginx.sh && bash nginx-tool-main/install_nginx.sh
+```
+
+`codeload.github.com` 也连不通时用代理取单文件：
 
 ```bash
 curl -fsSL -o /tmp/install_nginx.sh https://ghproxy.net/https://raw.githubusercontent.com/3651809/nginx-tool/main/install_nginx.sh
-bash /tmp/install_nginx.sh
+wc -l /tmp/install_nginx.sh        # 应为 2271
+bash -n /tmp/install_nginx.sh && bash /tmp/install_nginx.sh
 ```
 
-> `raw.githubusercontent.com` 在国内多数服务器上连不通，上面命令走 `ghproxy.net` 代理。海外机器可把 `https://ghproxy.net/` 前缀去掉。
-
 > 不要用 `curl ... | bash`。管道会把脚本本身喂给 stdin，交互菜单里的输入就读不到了。
+
+> 跑之前先 `bash -n` 语法检查一次。拿到的文件被代理换成别的内容时，这一步会直接报行号，不会跑到一半才炸。
 
 ### 2. 下载后运行
 

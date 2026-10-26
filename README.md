@@ -51,13 +51,7 @@ curl -fsSL https://codeload.github.com/3651809/nginx-tool/tar.gz/refs/heads/main
 bash -n nginx-tool-main/install_nginx.sh && bash nginx-tool-main/install_nginx.sh
 ```
 
-`codeload.github.com` 也连不通时用代理取单文件：
-
-```bash
-curl -fsSL -o /tmp/install_nginx.sh https://ghproxy.net/https://raw.githubusercontent.com/3651809/nginx-tool/main/install_nginx.sh
-wc -l /tmp/install_nginx.sh        # 应为 2271
-bash -n /tmp/install_nginx.sh && bash /tmp/install_nginx.sh
-```
+`codeload.github.com` 也连不通时，用下一节的 `git clone`，或直接把 `install_nginx.sh` 传到服务器再执行。
 
 > 不要用 `curl ... | bash`。管道会把脚本本身喂给 stdin，交互菜单里的输入就读不到了。
 

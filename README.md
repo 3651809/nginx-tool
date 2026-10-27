@@ -3,7 +3,7 @@
 在 Debian 上源码编译安装 nginx 并做生产环境基线配置的一键脚本。一个文件，带交互菜单，可反复执行。
 
 ```bash
-cd /tmp && rm -rf nginx-tool-main && curl -fsSL https://codeload.github.com/3651809/nginx-tool/tar.gz/refs/heads/main | tar xz && bash nginx-tool-main/install_nginx.sh
+bash <(curl -fsSL https://fastly.jsdelivr.net/gh/3651809/nginx-tool@main/install_nginx.sh)
 ```
 
 不求覆盖所有发行版，只解决一件事：**从干净的 Debian 到一台可以直接放站点的 nginx**，装的每一步都能查、能修、能卸。
@@ -29,7 +29,7 @@ cd /tmp && rm -rf nginx-tool-main && curl -fsSL https://codeload.github.com/3651
 | 系统 | Debian 13 (trixie)，Debian 12 亦可 |
 | 权限 | root |
 | 内存 | 512MB 以上（低于 2GB 且编译内置 OpenSSL 时自动降并行度） |
-| 网络 | 能访问 `mirrors.huaweicloud.com`、`nginx.org`、`codeload.github.com` |
+| 网络 | 能访问 `mirrors.huaweicloud.com`、`nginx.org`、`fastly.jsdelivr.net` |
 
 第一次运行会自动：换国内 apt 源（原文件备份）→ 装编译依赖 → 下载源码 → 编译 → 装服务。
 
@@ -40,22 +40,28 @@ cd /tmp && rm -rf nginx-tool-main && curl -fsSL https://codeload.github.com/3651
 ### 1. 在线一键运行（推荐）
 
 ```bash
-cd /tmp && rm -rf nginx-tool-main && curl -fsSL https://codeload.github.com/3651809/nginx-tool/tar.gz/refs/heads/main | tar xz && bash nginx-tool-main/install_nginx.sh
+bash <(curl -fsSL https://fastly.jsdelivr.net/gh/3651809/nginx-tool@main/install_nginx.sh)
 ```
 
-走 `codeload.github.com`，不依赖 `raw.githubusercontent.com`，也不经过第三方代理。想先看清再跑就拆成两步：
+只想先检查语法、不执行：
 
 ```bash
-cd /tmp && rm -rf nginx-tool-main
-curl -fsSL https://codeload.github.com/3651809/nginx-tool/tar.gz/refs/heads/main | tar xz
-bash -n nginx-tool-main/install_nginx.sh && bash nginx-tool-main/install_nginx.sh
+bash -n <(curl -fsSL https://fastly.jsdelivr.net/gh/3651809/nginx-tool@main/install_nginx.sh)
 ```
-
-`codeload.github.com` 也连不通时，用下一节的 `git clone`，或直接把 `install_nginx.sh` 传到服务器再执行。
 
 > 不要用 `curl ... | bash`。管道会把脚本本身喂给 stdin，交互菜单里的输入就读不到了。
 
-> 跑之前先 `bash -n` 语法检查一次。拿到的文件被代理换成别的内容时，这一步会直接报行号，不会跑到一半才炸。
+`cdn.jsdelivr.net` 在国内不通，要用 `fastly.` 或 `gcore.` 前缀。jsDelivr 对 `@main` 有最长 12 小时缓存，脚本更新后要立刻拿到新版，先刷一次缓存：
+
+```bash
+curl -sL https://purge.jsdelivr.net/gh/3651809/nginx-tool@main/install_nginx.sh
+```
+
+jsDelivr 连不上时，直接从源码包取，不经过任何 CDN：
+
+```bash
+cd /tmp && rm -rf nginx-tool-main && curl -fsSL https://codeload.github.com/3651809/nginx-tool/tar.gz/main | tar xz && bash nginx-tool-main/install_nginx.sh
+```
 
 ### 2. 下载后运行
 

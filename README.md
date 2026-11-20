@@ -1,12 +1,12 @@
 # nginx-tool
 
-在 Debian 上源码编译安装 nginx 并做生产环境基线配置的一键脚本。一个文件，带交互菜单，可反复执行。
+在 Debian / Ubuntu 上源码编译安装 nginx 并做生产环境基线配置的一键脚本。一个文件，带交互菜单，可反复执行。
 
 ```bash
 bash <(curl -fsSL https://gh-proxy.org/https://github.com/3651809/nginx-tool/blob/main/install_nginx.sh)
 ```
 
-不求覆盖所有发行版，只解决一件事：**从干净的 Debian 到一台可以直接放站点的 nginx**，装的每一步都能查、能修、能卸。
+不求覆盖所有发行版，只解决一件事：**从干净的 Debian / Ubuntu 到一台可以直接放站点的 nginx**，装的每一步都能查、能修、能卸。
 
 ---
 
@@ -14,6 +14,7 @@ bash <(curl -fsSL https://gh-proxy.org/https://github.com/3651809/nginx-tool/blo
 
 - **跟随官方最新版**：每次 `install` 自动查 nginx.org，稳定版出了新补丁直接升上去，不用改脚本；也能锁定具体版本
 - **源码编译**，不依赖发行版仓库里那个版本偏旧、模块被裁剪的 nginx
+- **认系统**：Debian 12/13、Ubuntu 20.04+ 直接跑；CentOS、Arch 等其他发行版在动手前说明差异后退出，不会装出半成品
 - **幂等**：重复执行不会重复编译，配置按版本号升级，站点配置永远不覆盖
 - **多镜像下载**：华为云 / 搜狐 / 官方三源，自动测速择优，主源挂掉自动换下一个，下载后校验 tar 包
 - **升级前先看改了什么**：从官方 CHANGES 抓当前版本的条目打印出来，再决定升不升
@@ -30,12 +31,52 @@ bash <(curl -fsSL https://gh-proxy.org/https://github.com/3651809/nginx-tool/blo
 
 | 项目 | 要求 |
 |---|---|
-| 系统 | Debian 13 (trixie)，Debian 12 亦可 |
+| 系统 | Debian 12 (bookworm) / 13 (trixie)、Ubuntu 20.04 及以上 |
 | 权限 | root |
 | 内存 | 512MB 以上（低于 2GB 且编译内置 OpenSSL 时自动降并行度） |
 | 网络 | 拉脚本要能访问 `gh-proxy.org` 或 jsDelivr；下载源码要能访问 `nginx.org` 或 `mirrors.huaweicloud.com`、`mirrors.sohu.com` 中任意一个 |
 
-第一次运行会自动：换国内 apt 源（原文件备份）→ 装编译依赖 → 下载源码 → 编译 → 装服务。
+第一次运行会自动：换国内 apt 源（原文件备份，已配过镜像源的不动）→ 装编译依赖 → 下载源码 → 编译 → 装服务。
+
+### 支持的系统
+
+只覆盖 Debian 系，因为它们的包名、目录约定、apt 源格式一致，一份代码就能跑：
+
+| 系统 | 状态 |
+|---|---|
+| Debian 13 (trixie) | 主力开发与验证环境 |
+| Debian 12 (bookworm) | 支持；版本更低只提示不阻止 |
+| Ubuntu 20.04 / 22.04 / 24.04 | 支持。apt 源可能是新格式 `ubuntu.sources`，也可能是旧的 `sources.list`，脚本自动识别 |
+| Ubuntu 衍生版（Mint、Pop!_OS 等） | 按 Ubuntu 处理（`ID_LIKE` 里带 ubuntu） |
+| CentOS / Rocky / Alma / 麒麟 / openEuler | 拒绝运行，说明原因后退出 |
+| Arch / Alpine / openSUSE | 拒绝运行，同上 |
+
+其他发行版不是「暂时没测」，而是**套上去会装出半成品**：
+
+- **RHEL 系**：编译依赖叫 `pcre2-devel` / `zlib-devel` / `openssl-devel`，不是 `libpcre2-dev` / `zlib1g-dev` / `libssl-dev`；而且默认开 SELinux，服务按本脚本装在 `/home/nginx` 会被拒绝访问，得额外写 SELinux 策略
+- **Arch / openSUSE**：用 pacman / zypper，包名与 Debian 完全不同
+- **Alpine**：用 musl libc，编译参数与 glibc 系统不通用
+
+脚本在动手之前就打印当前系统、支持范围、差异原因，然后退出，不会装到一半再炸：
+
+```
+  ✗ 不支持的操作系统：CentOS Stream 9
+
+    支持范围   Debian 12/13、Ubuntu 20.04 及以上
+    当前系统   RHEL 系（CentOS / Rocky / Alma / 麒麟 / openEuler）
+    差异说明   编译依赖的包名是 pcre2-devel / zlib-devel / openssl-devel，不是 libpcre2-dev；
+               RHEL 系默认开 SELinux，装到 /home/nginx 会被拒绝访问，需要额外写策略
+```
+
+确实想在别的系统上试：
+
+```bash
+FORCE_OS=1 bash install_nginx.sh install
+```
+
+这只是跳过检查，依赖包名、SELinux 策略、启动脚本还得自己处理。
+
+`status`、`doctor`、`uninstall` 不受这道检查限制——用 `FORCE_OS=1` 装上去的机器，得能查状态，也得能卸干净。
 
 ---
 
@@ -90,6 +131,17 @@ bash install_nginx.sh help        # 帮助
 
 ## 交互菜单
 
+![nginx-tool 交互菜单：SSH 登录后执行 bash install_nginx.sh](docs/menu.svg)
+
+SSH 登录后执行 `bash install_nginx.sh`，看到的就是上面这个界面：版本、运行状态、当前通道和镜像源在顶部，中间是全部操作，当前选中项是黑字青底。
+
+方向键移动，回车确认，`q` 返回；也可以直接按数字（菜单超过 9 项时连按两位选 10 以后）。
+
+右边一列的能力都能命令行直连，脚本、crontab、CI 里不用进菜单。
+
+<details>
+<summary>文字版（图片没加载出来时看这个）</summary>
+
 ```
   ▎ nginx 1.30.7  ·  管理控制台
   ──────────────────────────────────────────────────────────
@@ -113,7 +165,7 @@ bash install_nginx.sh help        # 帮助
   ╰──────────────────────────── ↑↓ 移动   ↵ 确认   q 退出 ╯
 ```
 
-方向键移动，回车确认，`q` 返回；也支持直接按数字。
+</details>
 
 ---
 
@@ -149,6 +201,7 @@ bash install_nginx.sh help        # 帮助
 | `FORCE_REBUILD=1` | `install` 时强制重新编译（版本相同也重编） |
 | `FORCE_CONF=1` | `install` / `repair` 时覆盖已有 `nginx.conf` |
 | `FORCE_YES=1` | `uninstall` 时跳过确认，直接删 |
+| `FORCE_OS=1` | 跳过发行版检查，在未支持的发行版上强行运行（后果自负） |
 
 环境变量优先级高于菜单里存下的 `/home/nginx/tool.conf`。
 
@@ -294,6 +347,7 @@ journalctl -u nginx -n 50
 | `reload` 失败 | pid 文件缺失或路径不一致，执行「修复」 |
 | 配置语法错误 | `nginx -t` 有具体行号，改完再 reload |
 | 编译卡住 / 内存不足 | 加 swap，或设 `BUNDLED_OPENSSL=0` 用系统 OpenSSL |
+| 提示「不支持的操作系统」 | 脚本只覆盖 Debian / Ubuntu。差异说明里写了为什么，确实要试用 `FORCE_OS=1` |
 | 证书签发失败 | 日志末尾有原因；HTTP 验证要确认域名已解析且 80 可达，否则改用 DNS |
 
 ---

@@ -1,0 +1,93 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="600" viewBox="0 0 900 600"
+     font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono','Liberation Mono',monospace"
+     role="img" aria-label="nginx-tool 交互菜单示意图">
+  <title>nginx-tool 交互菜单：SSH 登录后执行 bash install_nginx.sh</title>
+
+  <defs>
+    <clipPath id="win"><rect x="0" y="0" width="560" height="600" rx="10"/></clipPath>
+  </defs>
+
+  <!-- ================= 终端窗口 ================= -->
+  <g clip-path="url(#win)">
+    <rect x="0" y="0" width="560" height="600" fill="#0f141a"/>
+    <rect x="0" y="0" width="560" height="34" fill="#1a212b"/>
+    <rect x="0" y="33" width="560" height="1" fill="#262e38"/>
+    <circle cx="20" cy="17" r="5" fill="#ff5f57"/>
+    <circle cx="38" cy="17" r="5" fill="#febc2e"/>
+    <circle cx="56" cy="17" r="5" fill="#28c840"/>
+    <text x="78" y="21.5" font-size="12.5" fill="#8b98a6" xml:space="preserve">root@hcss-ecs-674d: ~</text>
+    <text x="540" y="21.5" font-size="11" fill="#5d6b7a" text-anchor="end" xml:space="preserve">ssh</text>
+
+    <!-- 命令行 -->
+    <text x="24" y="66" font-size="13.5" xml:space="preserve"><tspan fill="#4ec9a0">root@hcss-ecs-674d:~#</tspan><tspan fill="#e6edf3"> bash install_nginx.sh</tspan></text>
+
+    <!-- 页头：▎ nginx 1.30.7 · 管理控制台 -->
+    <text x="24" y="106" font-size="17" font-weight="600" xml:space="preserve"><tspan fill="#39c5cf">▎</tspan><tspan fill="#f0f6fc"> nginx 1.30.7  ·  管理控制台</tspan></text>
+    <rect x="24" y="118" width="484" height="1" fill="#39424e"/>
+
+    <!-- 状态行 -->
+    <text x="24" y="144" font-size="13" xml:space="preserve"><tspan fill="#3fb950">●</tspan><tspan fill="#3fb950">  运行中</tspan><tspan fill="#6b7a8a">  pid 4242  ·  /home/nginx  ·  通道 stable · 源 自动测速</tspan></text>
+
+    <!-- 菜单框 -->
+    <rect x="24.5" y="164.5" width="511" height="401" rx="6" fill="none" stroke="#39424e"/>
+    <rect x="27" y="172" width="506" height="26" rx="3" fill="#2aa4b8"/>
+
+    <!-- 选中行 -->
+    <text x="42" y="190" font-size="16" font-weight="700" fill="#06141a" xml:space="preserve">安装 / 更新 · 查最新版 · 编译 · 生产基线 · 开机自启</text>
+
+    <text x="42" y="216" font-size="16" xml:space="preserve"><tspan fill="#dfe7ef">版本通道</tspan><tspan fill="#7c8b9b"> · stable / mainline / 锁定具体版本</tspan></text>
+    <text x="42" y="242" font-size="16" xml:space="preserve"><tspan fill="#dfe7ef">镜像源</tspan><tspan fill="#7c8b9b"> · 自动测速 / 指定 / 自定义</tspan></text>
+    <text x="42" y="268" font-size="16" xml:space="preserve"><tspan fill="#dfe7ef">修复</tspan><tspan fill="#7c8b9b"> · 重建配置、权限、服务</tspan></text>
+    <text x="42" y="294" font-size="16" xml:space="preserve"><tspan fill="#dfe7ef">体检</tspan><tspan fill="#7c8b9b"> · 只读检查，不改动任何东西</tspan></text>
+    <text x="42" y="320" font-size="16" xml:space="preserve"><tspan fill="#dfe7ef">运行状态</tspan><tspan fill="#7c8b9b"> · 版本、进程、端口监听</tspan></text>
+    <text x="42" y="346" font-size="16" xml:space="preserve"><tspan fill="#dfe7ef">证书管理</tspan><tspan fill="#7c8b9b"> · 申请 · 续签 · 到期查看</tspan></text>
+    <text x="42" y="372" font-size="16" xml:space="preserve"><tspan fill="#dfe7ef">查看日志</tspan><tspan fill="#7c8b9b"> · access / error</tspan></text>
+    <text x="42" y="398" font-size="16" xml:space="preserve"><tspan fill="#dfe7ef">重载 / 重启</tspan><tspan fill="#7c8b9b"> · 改完配置用重载</tspan></text>
+    <text x="42" y="424" font-size="16" xml:space="preserve"><tspan fill="#dfe7ef">回滚</tspan><tspan fill="#7c8b9b"> · 切回之前备份的二进制</tspan></text>
+    <text x="42" y="450" font-size="16" xml:space="preserve"><tspan fill="#dfe7ef">备份配置</tspan><tspan fill="#7c8b9b"> · 打包 conf 目录</tspan></text>
+    <text x="42" y="476" font-size="16" xml:space="preserve"><tspan fill="#dfe7ef">外网访问排查</tspan><tspan fill="#7c8b9b"> · 端口、防火墙、公网 IP</tspan></text>
+    <text x="42" y="502" font-size="16" xml:space="preserve"><tspan fill="#dfe7ef">卸载</tspan><tspan fill="#7c8b9b"> · 停服务，清掉本脚本装的全部内容</tspan></text>
+    <text x="42" y="528" font-size="16" fill="#dfe7ef" xml:space="preserve">退出</text>
+
+    <!-- 底部提示 -->
+    <text x="524" y="556" font-size="12.5" fill="#6b7a8a" text-anchor="end" xml:space="preserve">↑↓ 移动   ↵ 确认   q 退出</text>
+  </g>
+  <rect x="0.5" y="0.5" width="559" height="599" rx="10" fill="none" stroke="#39424e"/>
+
+  <!-- ================= 右侧：功能一览 ================= -->
+  <rect x="584.5" y="0.5" width="315" height="599" rx="10" fill="#121820" stroke="#262e38"/>
+
+  <text x="604" y="40" font-size="15" font-weight="600" fill="#f0f6fc" xml:space="preserve">功能一览</text>
+  <text x="604" y="60" font-size="11" fill="#5d6b7a" xml:space="preserve">菜单里的每一项都能命令行直连</text>
+  <rect x="604" y="74" width="276" height="1" fill="#262e38"/>
+
+  <rect x="604" y="97" width="3" height="12" rx="1.5" fill="#39c5cf"/>
+  <text x="614" y="108" font-size="13" font-weight="600" fill="#e6edf3" xml:space="preserve">安装 / 升级</text>
+  <text x="604" y="130" font-size="12.5" fill="#7c8b9b" xml:space="preserve">一键编译 · 自动跟稳定版</text>
+  <text x="604" y="150" font-size="12.5" fill="#7c8b9b" xml:space="preserve">升级前打印 CHANGES</text>
+
+  <rect x="604" y="180" width="3" height="12" rx="1.5" fill="#39c5cf"/>
+  <text x="614" y="191" font-size="13" font-weight="600" fill="#e6edf3" xml:space="preserve">证书</text>
+  <text x="604" y="213" font-size="12.5" fill="#7c8b9b" xml:space="preserve">DNS：CF / 阿里 / 腾讯 / 华为</text>
+  <text x="604" y="233" font-size="12.5" fill="#7c8b9b" xml:space="preserve">HTTP 验证 · acme 自动续签</text>
+
+  <rect x="604" y="263" width="3" height="12" rx="1.5" fill="#39c5cf"/>
+  <text x="614" y="274" font-size="13" font-weight="600" fill="#e6edf3" xml:space="preserve">排障</text>
+  <text x="604" y="296" font-size="12.5" fill="#7c8b9b" xml:space="preserve">体检只读 · 日志 · 外网连通</text>
+  <text x="604" y="316" font-size="12.5" fill="#7c8b9b" xml:space="preserve">重载 / 重启 · 回滚二进制</text>
+
+  <rect x="604" y="346" width="3" height="12" rx="1.5" fill="#39c5cf"/>
+  <text x="614" y="357" font-size="13" font-weight="600" fill="#e6edf3" xml:space="preserve">交付</text>
+  <text x="604" y="379" font-size="12.5" fill="#7c8b9b" xml:space="preserve">备份配置 · 卸载前留档</text>
+  <text x="604" y="399" font-size="12.5" fill="#7c8b9b" xml:space="preserve">日志切割 14 天 · 内核参数 · 自启</text>
+
+  <rect x="604" y="429" width="3" height="12" rx="1.5" fill="#39c5cf"/>
+  <text x="614" y="440" font-size="13" font-weight="600" fill="#e6edf3" xml:space="preserve">支持系统</text>
+  <text x="604" y="462" font-size="12.5" fill="#7c8b9b" xml:space="preserve">Debian 12/13 · Ubuntu 20.04+</text>
+  <text x="604" y="482" font-size="12.5" fill="#7c8b9b" xml:space="preserve">其他发行版说明原因后退出</text>
+
+  <rect x="604" y="508" width="276" height="1" fill="#262e38"/>
+  <text x="604" y="532" font-size="11.5" fill="#5d6b7a" xml:space="preserve">无终端 / 自动化：</text>
+  <text x="604" y="552" font-size="11.5" xml:space="preserve"><tspan fill="#4ec9a0">bash install_nginx.sh</tspan><tspan fill="#8b98a6"> install</tspan></text>
+  <text x="604" y="572" font-size="11.5" fill="#5d6b7a" xml:space="preserve">不带参数直接进菜单</text>
+</svg>

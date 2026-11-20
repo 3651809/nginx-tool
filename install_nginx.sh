@@ -1,8 +1,11 @@
 #!/bin/bash
-# nginx 生产级部署与运维脚本（Debian 13 trixie）
+# nginx 生产级部署与运维脚本（Debian 12/13 · Ubuntu 20.04+）
 #
 #   直接执行，终端里选菜单：   bash install_nginx.sh
 #   命令行直连（脚本/自动化）：  bash install_nginx.sh install|repair|doctor|status|uninstall
+#
+# 只支持 Debian 系（Debian / Ubuntu）。其他发行版会在第 00 步说明原因后退出，
+# 不会装到一半再炸。确实要在别的系统上试：FORCE_OS=1 bash install_nginx.sh ...
 #
 # 运行时统一用 bash install_nginx.sh。用 ./install_nginx.sh 时，若文件被 Windows
 # 存成 CRLF，内核会因为 shebang 末尾的 \r 直接报 bad interpreter，脚本自身无法补救。
@@ -56,6 +59,20 @@ LIMITS_FILE=/etc/security/limits.d/nginx.conf
 MARKER="managed-by: install_nginx.sh"
 CONF_VERSION=3                          # 配置模板版本，升级模板时 +1，安装时自动覆盖旧版
 TOOL_CONF=$BASE/tool.conf               # 菜单里选的版本通道 / 镜像源持久化在这里
+
+FORCE_OS=${FORCE_OS:-0}                 # 1=跳过发行版检查（未支持的发行版强上，后果自负）
+
+# 发行版探测结果，由 detect_os 填
+OS_ID=""; OS_VER=""; OS_NAME=""; OS_LIKE=""; OS_FAMILY=""
+
+# 编译依赖。Debian 与 Ubuntu 的包名完全一致，共用这一份
+BUILD_DEPS=(build-essential libpcre2-dev zlib1g-dev libssl-dev libaio-dev
+            openssl wget curl aria2 ca-certificates logrotate git cron)
+
+# 用户自己配过的镜像源，认出来就别抢方向盘（换源只针对官方源）
+MIRROR_KNOWN='mirrors\.(huaweicloud|aliyun|tencentyun|tencent|ustc|tuna|nju|bfsu|zju|163|sjtug)'
+APT_SRC_FILE=""                          # 实际使用的 apt 源文件，由 apt_mirror_rewrite 填
+MIRROR_BAK=""                            # 换源前的备份路径，失败时用来回退
 
 # 源码下载源，按顺序尝试。任何一源挂掉都会自动跳下一个，最后一个走官方
 # 实测 2026-11 可用：华为云、搜狐、nginx.org；腾讯云/阿里云/清华/中科大没有 nginx 目录
@@ -462,6 +479,11 @@ usage() {
   uninstall  卸载。停服务，清理本脚本装的所有内容（会二次确认）
   help       显示本帮助
 
+支持系统:
+  Debian 12 (bookworm) / 13 (trixie)、Ubuntu 20.04 及以上
+  CentOS / Rocky / Alma 等 RHEL 系，以及 Arch、Alpine、openSUSE 会在开始前
+  说明差异后退出（SELinux、包名、包管理器都不同，硬装只会装出半成品）
+
 环境变量:
   NGINX_CHANNEL=stable  install 的目标版本通道：stable / mainline / 具体版本号（如 1.30.7）
                         默认 stable，每次 install 自动查官方最新稳定版，有新版就升级
@@ -470,6 +492,7 @@ usage() {
   FORCE_REBUILD=1     install 时强制重新编译（版本相同也重编）
   FORCE_CONF=1        install/repair 时覆盖已有 nginx.conf
   FORCE_YES=1         uninstall 时跳过确认，直接删（脚本/自动化用）
+  FORCE_OS=1          跳过发行版检查，在未支持的发行版上强行运行（后果自负）
 
   环境变量优先级高于 /home/nginx/tool.conf（菜单里选过的设置）。
 EOF
@@ -679,34 +702,171 @@ resolve_mirrors() {
 }
 
 # ============================================================
-# 基础动作
+# 运行环境检查（只支持 Debian 系）
 # ============================================================
-setup_apt() {
-  log "配置 apt 源与依赖"
-  local f=/etc/apt/sources.list.d/debian.sources
-  [ -f "$f" ] || f=/etc/apt/sources.list
-  [ -f "$f" ] || die "找不到 apt 源文件"
+# 本脚本按 Debian/Ubuntu 的包名、目录约定和 systemd 写法编写。其他发行版不硬闯：
+# 装到一半失败留下的半成品（换了一半的源、编了一半的树、起了半个服务），
+# 比一开始就拒绝难收拾得多。
+detect_os() {
+  OS_ID=""; OS_VER=""; OS_NAME=""; OS_LIKE=""; OS_FAMILY=""
 
-  if grep -q "$MIRROR_APT" "$f"; then
-    info "已是国内源，跳过替换"
-  else
-    cp "$f" "${f}.bak.$(date +%Y%m%d%H%M%S)"
-    sed -i "s|deb.debian.org|${MIRROR_APT}|g; s|security.debian.org|${MIRROR_APT}|g" "$f"
-    info "已切换为 ${MIRROR_APT}（原文件已备份）"
+  if [ -r /etc/os-release ]; then
+    # 只取值不 source：这是外部文件，没理由在本进程里执行它
+    OS_ID=$(sed -n 's/^ID=//p' /etc/os-release | tr -d '"' | head -1)
+    OS_LIKE=$(sed -n 's/^ID_LIKE=//p' /etc/os-release | tr -d '"' | head -1)
+    OS_VER=$(sed -n 's/^VERSION_ID=//p' /etc/os-release | tr -d '"' | head -1)
+    OS_NAME=$(sed -n 's/^PRETTY_NAME=//p' /etc/os-release | tr -d '"' | head -1)
+  fi
+  [ -n "$OS_NAME" ] || OS_NAME=${OS_ID:-未知发行版}
+
+  # ubuntu 的判断放前面：Mint / Pop!_OS 这类 ID_LIKE 同时带 ubuntu 和 debian，
+  # 它们用的是 Ubuntu 的源和包，按 Ubuntu 处理才对
+  case " $OS_ID $OS_LIKE " in
+    *" ubuntu "*) OS_FAMILY=ubuntu ;;
+    *" debian "*) OS_FAMILY=debian ;;
+    *)            OS_FAMILY=unsupported ;;
+  esac
+}
+
+unsupported_os_msg() {
+  local fam="未识别的发行版"
+  local why="本脚本按 Debian 的包名与目录约定编写，无法直接套用"
+
+  case " $OS_ID $OS_LIKE " in
+    *" rhel "*|*" centos "*|*" fedora "*|*" rocky "*|*" alma "*|*" openeuler "*|*" anolis "*|*" kylin "*)
+      fam="RHEL 系（CentOS / Rocky / Alma / 麒麟 / openEuler）"
+      why=$'编译依赖的包名是 pcre2-devel / zlib-devel / openssl-devel，不是 libpcre2-dev；\n    RHEL 系默认开 SELinux，装到 /home/nginx 会被拒绝访问，需要额外写策略'
+      ;;
+    *" arch "*)   fam="Arch 系";  why="用 pacman，包名与 Debian 完全不同" ;;
+    *" alpine "*) fam="Alpine";   why="用 musl libc 和 apk，编译参数与 glibc 系统不通用" ;;
+    *" suse "*)   fam="openSUSE"; why="用 zypper，包名与 Debian 完全不同" ;;
+  esac
+
+  printf '\n' >&2
+  printf '  %s✗%s %s不支持的操作系统%s：%s\n' \
+    "$C_RED" "$C_RST" "$C_BOLD" "$C_RST" "$OS_NAME" >&2
+  printf '\n' >&2
+  printf '    支持范围   Debian 12/13、Ubuntu 20.04 及以上\n' >&2
+  printf '    当前系统   %s\n' "$fam" >&2
+  printf '    差异说明   %s\n' "$why" >&2
+  printf '\n' >&2
+  printf '    %s要在本机强行尝试：FORCE_OS=1 bash %s install%s\n' "$C_DIM" "$0" "$C_RST" >&2
+  printf '    %s希望支持这个发行版：https://github.com/3651809/nginx-tool/issues%s\n' "$C_DIM" "$C_RST" >&2
+  printf '\n' >&2
+  exit 1
+}
+
+require_supported_os() {
+  if [ "$FORCE_OS" = "1" ]; then
+    warn "FORCE_OS=1，跳过发行版检查（当前 ${OS_NAME}）"
+    case "$OS_FAMILY" in
+      debian|ubuntu) ;;
+      *) OS_FAMILY=debian ;;
+    esac
+    return 0
   fi
 
+  case "$OS_FAMILY" in
+    debian|ubuntu) ;;
+    *) unsupported_os_msg ;;
+  esac
+
+  # 版本下限只做提醒不做拦截：老版本报错会更难懂，先让人自己判断
+  local major=${OS_VER%%.*}
+  # testing / rolling 这类版本号不是数字，直接跳过比较，免得 [ -lt ] 报错
+  case "$major" in ''|*[!0-9]*) return 0 ;; esac
+  case "$OS_FAMILY" in
+    debian)
+      if [ "$major" -lt 12 ]; then
+        warn "Debian ${OS_VER} 未经测试，建议 12 (bookworm) 或 13 (trixie)"
+      fi
+      ;;
+    ubuntu)
+      if [ "$major" -lt 20 ]; then
+        warn "Ubuntu ${OS_VER} 未经测试，建议 20.04 及以上"
+      fi
+      ;;
+  esac
+}
+
+# ============================================================
+# 基础动作
+# ============================================================
+apt_sources_file() {
+  local f
+  for f in /etc/apt/sources.list.d/debian.sources \
+           /etc/apt/sources.list.d/ubuntu.sources \
+           /etc/apt/sources.list; do
+    if [ -f "$f" ]; then
+      printf '%s' "$f"
+      return 0
+    fi
+  done
+  return 1
+}
+
+# 官方源换国内镜像。两种文件格式都要认：
+#   Debian 13 / Ubuntu 24.04 用 deb822 的 *.sources，更早的版本用一行的 sources.list
+# 只替换域名、保留路径：/debian、/debian-security、/ubuntu 在镜像站上的布局一致
+apt_mirror_rewrite() {
+  local h bak
+
+  if ! APT_SRC_FILE=$(apt_sources_file); then
+    die "找不到 apt 源文件：/etc/apt/sources.list 和 sources.list.d/*.sources 都不存在"
+  fi
+
+  if grep -q "$MIRROR_APT" "$APT_SRC_FILE" 2>/dev/null; then
+    info "已是 ${MIRROR_APT}，跳过换源"
+    return 0
+  fi
+  if grep -qE "$MIRROR_KNOWN" "$APT_SRC_FILE" 2>/dev/null; then
+    info "检测到已配置的镜像源，保持不动"
+    return 0
+  fi
+
+  local -a hosts=()
+  case "$OS_FAMILY" in
+    ubuntu) hosts=(archive.ubuntu.com security.ubuntu.com ports.ubuntu.com) ;;
+    *)      hosts=(deb.debian.org security.debian.org) ;;
+  esac
+
+  bak="${APT_SRC_FILE}.bak.$(date +%Y%m%d%H%M%S)"
+  cp -a "$APT_SRC_FILE" "$bak"
+  for h in "${hosts[@]}"; do
+    sed -i "s|${h}|${MIRROR_APT}|g" "$APT_SRC_FILE"
+  done
+  MIRROR_BAK=$bak
+  info "已切换为 ${MIRROR_APT}（原文件：${bak}）"
+}
+
+setup_apt() {
+  log "配置软件源与依赖"
+  apt_mirror_rewrite
+
   export DEBIAN_FRONTEND=noninteractive
-  spin "更新软件包索引" apt-get update -qq
-  spin "安装编译依赖" apt-get install -y --no-install-recommends \
-    build-essential libpcre2-dev zlib1g-dev libssl-dev libaio-dev \
-    openssl wget curl aria2 ca-certificates logrotate git cron
+
+  # 换源后 update 失败多半是镜像站抽风，退回原源，别让整台机器卡在第一步
+  if ! spin "更新软件包索引" apt-get update -qq; then
+    if [ -n "${MIRROR_BAK:-}" ] && [ -f "$MIRROR_BAK" ]; then
+      warn "换源后 apt update 失败，已回退原源"
+      cp -a "$MIRROR_BAK" "$APT_SRC_FILE"
+      MIRROR_BAK=""
+      spin "重试软件包索引" apt-get update -qq
+    else
+      die "apt update 失败，检查网络与源配置：${APT_SRC_FILE:-未知}"
+    fi
+  fi
+
+  spin "安装编译依赖" apt-get install -y --no-install-recommends "${BUILD_DEPS[@]}"
 }
 
 setup_dirs() {
   log "创建目录"
   mkdir -p "$BUILD_DIR" "$INSTALL_DIR" "$LOGS_DIR" "$CONF_DIR" \
            "$CERT_DIR" "$RUN_DIR" "$CACHE_DIR" "$BACKUP_DIR" "$VHOST_DIR"
-  chmod 700 "$CERT_DIR"
+  # 711 而非 700：webroot 下的 HTTP-01 验证文件要能被 nginx worker 读到，
+  # 进入子目录要求每一级父目录都有 x 位；不给 r 是为了避免列出域名清单
+  chmod 711 "$CERT_DIR"
   info "$BASE"
 }
 
@@ -1144,7 +1304,11 @@ setup_user() {
   if id -u "$NGINX_USER" >/dev/null 2>&1; then
     info "用户 $NGINX_USER 已存在"
   else
-    useradd -r -s /usr/sbin/nologin -d "$BASE" "$NGINX_USER"
+    # nologin 的位置各发行版不同（Debian 系 /usr/sbin、RHEL 系 /sbin），用 PATH 找
+    local shell
+    shell=$(command -v nologin || true)
+    [ -n "$shell" ] || shell=/usr/sbin/nologin
+    useradd -r -s "$shell" -d "$BASE" "$NGINX_USER"
     info "已创建用户 $NGINX_USER"
   fi
 
@@ -1203,6 +1367,91 @@ WantedBy=multi-user.target
 EOF
 }
 
+# ---- 端口占用 ----
+
+# 80/443 上的监听 pid，去重后升序输出
+port_holder_pids() {
+  command -v ss >/dev/null 2>&1 || return 0
+  # 用 grep 而不是 ss 的 filter 表达式：不同 iproute2 版本对 filter 支持不一致
+  ss -lntp 2>/dev/null | grep -E ':(80|443)[[:space:]]' \
+    | grep -oE 'pid=[0-9]+' | cut -d= -f2 | sort -un
+}
+
+# 每个占用方打印一行：pid、进程名、可执行文件（二进制被替换过会带 (deleted)）
+port_holders_report() {
+  local pids=$1 all pid ppid exe
+  all=" $pids "
+  for pid in $pids; do
+    # 主进程与 worker 会同时出现在同一条 LISTEN 记录里，只报主进程
+    ppid=$(awk '/^PPid:/{print $2}' "/proc/$pid/status" 2>/dev/null)
+    case "$all" in *" ${ppid:-0} "*) continue ;; esac
+    exe=$(readlink "/proc/$pid/exe" 2>/dev/null || echo '-')
+    printf '      pid %-6s %-8s %s\n' "$pid" \
+      "$(cat "/proc/$pid/comm" 2>/dev/null || echo '?')" "$exe"
+  done
+}
+
+# 启动前确认端口是空的。只处理一种情况：本工具上一轮留下的 nginx 主进程，
+# 它已脱离 systemd（ppid=1、二进制文件名带 deleted），却还占着 80/443，
+# 新进程起来就是 EADDRINUSE。别人的 nginx 或别的程序一律不动，只报不动手
+preflight_ports() {
+  local pids pid exe stray foreign p i
+  pids=$(port_holder_pids)
+  [ -n "$pids" ] || return 0
+
+  stray=""
+  foreign=""
+  for pid in $pids; do
+    exe=$(readlink "/proc/$pid/exe" 2>/dev/null || echo '-')
+    case "$exe" in
+      # 只认本工具装的那两个路径：正常二进制、升级时被挪开的旧二进制。
+      # 二进制被替换掉之后，/proc/<pid>/exe 末尾会多一个 " (deleted)"
+      "$NGINX_BIN"|"$NGINX_BIN (deleted)"|"$NGINX_BIN.prev"|"$NGINX_BIN.prev (deleted)")
+        # 是我们的二进制，但不在本服务 cgroup 里 —— 说明是孤儿
+        if grep -qs 'nginx\.service' "/proc/$pid/cgroup" 2>/dev/null; then
+          foreign="$foreign $pid"
+        else
+          stray="$stray $pid"
+        fi
+        ;;
+      *) foreign="$foreign $pid" ;;
+    esac
+  done
+
+  if [ -n "$foreign" ]; then
+    warn "80/443 被别的东西占着，本脚本不去动它："
+    port_holders_report "$foreign"
+    die "请先停掉上面的进程，或修改监听端口后重试"
+  fi
+
+  [ -n "$stray" ] || return 0
+  warn "发现脱离 systemd 的 nginx 进程仍在占用端口："
+  port_holders_report "$stray"
+  info "发送 QUIT 让其处理完当前请求后退出..."
+
+  for p in $stray; do kill -QUIT "$p" 2>/dev/null || true; done
+  i=0
+  while [ "$i" -lt 15 ]; do
+    [ -z "$(port_holder_pids)" ] && break
+    sleep 0.2
+    i=$((i + 1))
+  done
+
+  if [ -n "$(port_holder_pids)" ]; then
+    warn "3 秒内未退出，改用 TERM 强制结束"
+    for p in $stray; do kill -TERM "$p" 2>/dev/null || true; done
+    i=0
+    while [ "$i" -lt 15 ]; do
+      [ -z "$(port_holder_pids)" ] && break
+      sleep 0.2
+      i=$((i + 1))
+    done
+    [ -z "$(port_holder_pids)" ] || die "端口仍被占用，请手动检查：ss -lntp"
+  fi
+
+  ok "80/443 已释放"
+}
+
 # 服务起不来时一次把关键信息打全，避免用户再去逐个翻日志
 diagnose() {
   echo
@@ -1228,9 +1477,9 @@ diagnose() {
 
   info "端口占用"
   local busy
-  busy=$(ss -lntp 2>/dev/null | grep -E ':(80|443)\s' || true)
+  busy=$(port_holder_pids)
   if [ -n "$busy" ]; then
-    printf '%s\n' "$busy" | sed 's/^/      /'
+    port_holders_report "$busy"
   else
     info "  80 / 443 没有被占用"
   fi
@@ -1249,6 +1498,17 @@ setup_service() {
     # 二进制已经换过：reload 只让 master 重读配置，工作进程仍跑旧二进制，
     # master 进程不会自替换，必须 restart 才真正切到新版本
     info "二进制已更新，重启以加载新版本"
+    # restart 是 stop + start：配置有问题会先把站停掉，再起不来。
+    # 先用新二进制过一遍配置，不合格就还原旧二进制退出，服务不受影响
+    if ! "$NGINX_BIN" -t -q; then
+      fail "新版本校验配置未通过，取消切换"
+      "$NGINX_BIN" -t 2>&1 | sed 's/^/      /' || true
+      if [ -n "${PREV_VERSION:-}" ] && [ -f "$BACKUP_DIR/nginx-${PREV_VERSION}.bin" ]; then
+        cp -af "$BACKUP_DIR/nginx-${PREV_VERSION}.bin" "$NGINX_BIN"
+        warn "已还原旧二进制，仍在运行 ${PREV_VERSION}"
+      fi
+      die "配置校验失败，未重启服务"
+    fi
     if ! systemctl restart nginx; then
       diagnose
       if [ -n "${PREV_VERSION:-}" ] && [ -f "$BACKUP_DIR/nginx-${PREV_VERSION}.bin" ]; then
@@ -1272,6 +1532,9 @@ setup_service() {
       info "服务已重启"
     fi
   else
+    # 服务没在跑却有人占着 80/443，多半是上一轮留下的孤儿进程，
+    # 先清掉再 start，比等 systemctl 报 EADDRINUSE 再去翻日志快
+    preflight_ports
     if ! systemctl start nginx; then
       diagnose
       die "nginx 启动失败，原因见上方诊断"
@@ -1428,7 +1691,8 @@ acme_install_cert() {
   local domain=$1
   local dir=$CERT_DIR/$domain
   mkdir -p "$dir"
-  chmod 700 "$CERT_DIR" "$dir"
+  chmod 711 "$CERT_DIR"        # 只需可穿过，与 setup_dirs 保持一致
+  chmod 700 "$dir"             # 私钥所在层，仅属主可进
 
   info "正在把证书复制到固定目录..."
   if ! "$ACME_SH" --home "$ACME_HOME" --install-cert -d "$domain" \
@@ -2213,6 +2477,13 @@ do_doctor() {
   local cver="" cur latest
   page_head "nginx 体检" "只读检查 · 不改动任何东西"
 
+  sec "系统"
+  if [ "$OS_FAMILY" = "debian" ] || [ "$OS_FAMILY" = "ubuntu" ]; then
+    ok "$OS_NAME"
+  else
+    warn "$OS_NAME（不在支持范围内，FORCE_OS=1 跳过检查）"
+  fi
+
   sec "二进制"
   if [ -x "$NGINX_BIN" ]; then
     ok "$NGINX_BIN"
@@ -2883,6 +3154,15 @@ main() {
   esac
 
   [ "$(id -u)" = "0" ] || die "请用 root 运行"
+
+  # 发行版检查放在所有实际动作之前。help 已经在上面的分支返回了，
+  # 所以任何系统都能看帮助，只有真要动系统时才拦
+  detect_os
+  # 卸载和只读命令不卡发行版：用 FORCE_OS 装上去的机器，必须还能查状态、还能卸干净
+  case "$arg1" in
+    uninstall|status|doctor) ;;
+    *) require_supported_os ;;
+  esac
 
   # 菜单里存过的版本通道 / 镜像源，命令行没指定时生效
   load_tool_conf
